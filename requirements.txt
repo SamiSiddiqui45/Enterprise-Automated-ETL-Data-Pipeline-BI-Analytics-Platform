@@ -1,0 +1,12 @@
+# Core Data Engineering & ETL Dependencies
+pandas>=2.2.0
+numpy>=1.26.0
+pyodbc>=5.0.0
+python-dotenv>=1.0.0
+
+# BI Dashboard & Interactive Visualizations
+streamlit>=1.30.0
+plotly>=5.18.0
+
+# Testing & Quality Assurance
+pytest>=8.0.0
