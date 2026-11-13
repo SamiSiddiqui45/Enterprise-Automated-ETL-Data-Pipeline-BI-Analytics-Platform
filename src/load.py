@@ -13,11 +13,6 @@ logger = setup_logger("ETLPipeline.Load")
 
 
 
-def load_staging(conn, raw_df, run_id:int):
-    return a+b
-
-load_staging(10, 15)
-
 def load_staging(conn: pyodbc.Connection, raw_df: pd.DataFrame, run_id: int) -> int:
     """
     Loads raw CSV records into stg.OrdersRaw for auditability and lineage tracking.
@@ -237,6 +232,41 @@ def load_fact(conn: pyodbc.Connection, fact_df: pd.DataFrame, run_id: int) -> in
     Returns:
         Number of fact records inserted.
     """
+    logger.info(f"Ensuring dw.FactSales table exists...")
+    cursor = conn.cursor()
+    cursor.execute("""
+    IF NOT EXISTS (SELECT * FROM sys.tables t JOIN sys.schemas s ON t.schema_id = s.schema_id WHERE s.name = 'dw' AND t.name = 'FactSales')
+    BEGIN
+        CREATE TABLE dw.FactSales (
+            FactSalesKey            BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_dw_FactSales PRIMARY KEY CLUSTERED,
+            SourceRowID             INT NOT NULL CONSTRAINT UQ_dw_FactSales_SourceRowID UNIQUE,
+            OrderID                 VARCHAR(50) NOT NULL,
+            OrderDateKey            INT NOT NULL,
+            ShipDateKey             INT NOT NULL,
+            CustomerKey             INT NOT NULL,
+            ProductKey              INT NOT NULL,
+            GeographyKey            INT NOT NULL,
+            ShipModeKey             INT NOT NULL,
+            SalesAmount             DECIMAL(12,4) NOT NULL,
+            Quantity                INT NOT NULL,
+            DiscountRate            DECIMAL(5,4) NOT NULL,
+            ProfitAmount            DECIMAL(12,4) NOT NULL,
+            CalculatedCost          DECIMAL(12,4) NOT NULL,
+            ProfitMargin            DECIMAL(7,4) NOT NULL,
+            ShippingDurationDays    INT NOT NULL,
+            ETLRunID                BIGINT NOT NULL,
+            LoadedAt                DATETIME2(3) NOT NULL CONSTRAINT DF_dw_FactSales_LoadedAt DEFAULT SYSUTCDATETIME(),
+            CONSTRAINT FK_dw_FactSales_OrderDate FOREIGN KEY (OrderDateKey) REFERENCES dw.DimDate(DateKey),
+            CONSTRAINT FK_dw_FactSales_ShipDate FOREIGN KEY (ShipDateKey) REFERENCES dw.DimDate(DateKey),
+            CONSTRAINT FK_dw_FactSales_Customer FOREIGN KEY (CustomerKey) REFERENCES dw.DimCustomer(CustomerKey),
+            CONSTRAINT FK_dw_FactSales_Product FOREIGN KEY (ProductKey) REFERENCES dw.DimProduct(ProductKey),
+            CONSTRAINT FK_dw_FactSales_Geography FOREIGN KEY (GeographyKey) REFERENCES dw.DimGeography(GeographyKey),
+            CONSTRAINT FK_dw_FactSales_ShipMode FOREIGN KEY (ShipModeKey) REFERENCES dw.DimShipMode(ShipModeKey)
+        );
+    END
+    """)
+    conn.commit()
+
     logger.info(f"Resolving foreign keys for {len(fact_df):,} fact records...")
     maps = get_dimension_lookup_maps(conn)
 
